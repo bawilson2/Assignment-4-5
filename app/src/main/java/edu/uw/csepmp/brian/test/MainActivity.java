@@ -623,7 +623,7 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
 
     //My method to update the graph
     private void addData(byte[] data) {
-        float newFloat = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).getChar();
+        float newFloat = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).getFloat();
         series.addValue(newFloat);
         dataChangeSignal.notifyObservers();
     }
