@@ -29,13 +29,9 @@ import com.androidplot.xy.BoundaryMode;
 import com.androidplot.xy.LineAndPointFormatter;
 import com.androidplot.xy.XYPlot;
 import com.androidplot.xy.XYSeries;
-import com.androidplot.xy.XYStepMode;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.text.DecimalFormat;
-import java.util.Arrays;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Observable;
 import java.util.Observer;
@@ -46,36 +42,6 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
     // State machine
     final private static int STATE_BLUETOOTH_OFF = 1;
     final private static int STATE_DISCONNECTED = 2;
-    final private static int STATE_CONNECTING = 3;
-    final private static int STATE_CONNECTED = 4;
-
-    private int state;
-
-    private boolean scanStarted;
-    private boolean scanning;
-
-    private BluetoothAdapter bluetoothAdapter;
-    private BluetoothDevice bluetoothDevice;
-
-    private RFduinoService rfduinoService;
-    private ServiceConnection rfduinoServiceConnection;
-
-    private Button enableBluetoothButton;
-    private TextView scanStatusText;
-    private Button scanButton;
-    private TextView deviceInfoText;
-    private TextView connectionStatusText;
-    private Button connectButton;
-    private Button disconnectButton;
-
-    private RetainedFragment dataFragment;
-    private boolean serviceBound;
-    private boolean connectionIsOld = false;
-    private boolean fromNotification = false;
-    private boolean serviceInForeground = false;
-    MyObservable dataChangeSignal;
-
-
     private final BroadcastReceiver bluetoothStateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -87,7 +53,13 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
             }
         }
     };
-
+    final private static int STATE_CONNECTING = 3;
+    final private static int STATE_CONNECTED = 4;
+    MyObservable dataChangeSignal;
+    DynamicSeries series;
+    private int state;
+    private boolean scanStarted;
+    private boolean scanning;
     private final BroadcastReceiver scanModeReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -96,6 +68,26 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
             updateUi();
         }
     };
+    private BluetoothAdapter bluetoothAdapter;
+    private BluetoothDevice bluetoothDevice;
+    private RFduinoService rfduinoService;
+    private ServiceConnection rfduinoServiceConnection;
+    private Button enableBluetoothButton;
+    private TextView scanStatusText;
+    private Button scanButton;
+    private TextView deviceInfoText;
+    private TextView connectionStatusText;
+    private Button connectButton;
+    private Button disconnectButton;
+    private RetainedFragment dataFragment;
+    XYPlot dynamicPlot;
+    private boolean serviceBound;
+    private boolean connectionIsOld = false;
+    private boolean fromNotification = false;
+    private boolean serviceInForeground = false;
+    private int MAX_SERIES_SIZE = 750;
+    private int counter =0;
+
 
     private final BroadcastReceiver rfduinoReceiver = new BroadcastReceiver() {
         @Override
@@ -108,10 +100,23 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
                 downgradeState(STATE_DISCONNECTED);
             } else if (RFduinoService.ACTION_DATA_AVAILABLE.equals(action)) {
                 addData(intent.getByteArrayExtra(RFduinoService.EXTRA_DATA));
+                counter++;
+                if(counter % 200 == 0 && series.size() == MAX_SERIES_SIZE) {
+                    Log.d("Main", "Run BPM");
+
+                    counter =0;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Float BPM = series.getBPM();
+                            TextView bpmTextView = (TextView) findViewById(R.id.BPM);
+                            bpmTextView.setText(BPM + " BPM");
+                        }
+                    });
+                }
             }
         }
     };
-
 
     @Override
     public void onLeScan(BluetoothDevice device, final int rssi, final byte[] scanRecord) {
@@ -128,25 +133,6 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
             }
         });
     }
-
-    // redraws a plot whenever an update is received:
-    private class MyPlotUpdater implements Observer {
-        Plot plot;
-
-        public MyPlotUpdater(Plot plot) {
-            this.plot = plot;
-        }
-
-        @Override
-        public void update(Observable o, Object arg) {
-            plot.redraw();
-        }
-    }
-
-    private XYPlot dynamicPlot;
-    private MyPlotUpdater plotUpdater;
-    private Thread myThread;
-    DynamicSeries series;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -193,8 +179,7 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
 
 
         Intent inti = getIntent();
-        int flags = inti.getFlags();
-        if((inti.getAction().equals("RFduinoTest_CallToMain")) || (serviceInForeground))//&& ((flags & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0))
+        if((inti.getAction().equals("RFduinoTest_CallToMain")) || (serviceInForeground))
         {
             Log.w("Main", "Return from notifictation");
             Intent stopForegroundIntent = new Intent(getApplicationContext(), RFduinoService.class);
@@ -294,21 +279,7 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
             updateUi();
         }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        XYPlot dynamicPlot = (XYPlot) findViewById(R.id.dynamicXYPlot);
+        dynamicPlot = (XYPlot) findViewById(R.id.dynamicXYPlot);
 
         MyPlotUpdater plotUpdater = new MyPlotUpdater(dynamicPlot);
 
@@ -337,9 +308,11 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
         dynamicPlot.getLayoutManager().remove(dynamicPlot.getDomainLabelWidget());
         dynamicPlot.getLayoutManager().remove(dynamicPlot.getLegendWidget());
 
+        dynamicPlot.setRangeBoundaries(0,127, BoundaryMode.FIXED);
+        dynamicPlot.setDomainBoundaries(0, series.size()/2, BoundaryMode.FIXED);
+
 
     }
-
 
     @Override
     protected void onStart() {
@@ -365,7 +338,6 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
         unregisterReceiver(bluetoothStateReceiver);
         unregisterReceiver(rfduinoReceiver);
     }
-
 
     @Override
     protected  void onDestroy()
@@ -394,11 +366,6 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
                     btleBundle.connection = rfduinoServiceConnection;
                     btleBundle.service = rfduinoService;
                 }
-/*                if(dataFragment != null) {
-                    Log.w("Main","Bundle saved to fragment");
-                    dataFragment.setData(btleBundle);
-                }
-*/
                 if(rfduinoService != null) {
                     Log.w("Main","Bundle saved to service");
                     rfduinoService.setData(btleBundle);
@@ -445,7 +412,6 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
         super.onDestroy();
     }
 
-
     @Override
     public void onResume() {
         super.onResume();
@@ -478,12 +444,10 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
         }
 
         // Connect
-        boolean connected = false;
         String connectionText = "Disconnected";
         if (state == STATE_CONNECTING) {
             connectionText = "Connecting...";
         } else if (state == STATE_CONNECTED) {
-            connected = true;
             connectionText = "Connected";
         }
         connectionStatusText.setText(connectionText);
@@ -492,52 +456,6 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
 
         Log.w("Main","Updated UI to state " + state);
     }
-
-    class DynamicSeries implements XYSeries {
-        private LinkedList<Float> data =  new LinkedList<>();
-        private String title;
-
-
-        @Override
-        public String getTitle() {
-            return title;
-        }
-
-        @Override
-        public int size() {
-            return data.size();
-        }
-
-        @Override
-        public Number getX(int index) {
-            return index;
-        }
-
-        @Override
-        public Number getY(int index) {
-            return data.get(index);
-        }
-
-
-        public void addValue(Float newValue) {
-            if (data.size() == 100) {
-                data.pop();
-            }
-            //do a little smoothing on the previous data
-//            if(data.size() > SMOOTHING_RATE) {
-//                Iterator<SeriesNode> nodeIter = data.descendingIterator();
-//                Double[] lastThree = new Double[SMOOTHING_RATE];
-//                lastThree[0] = nodeIter.next().getValue();
-//                lastThree[1] = nodeIter.next().getValue();
-//                lastThree[2] = newValue;
-//                Arrays.sort(lastThree);
-//                data.peekLast().setValue(lastThree[1]);
-//            }
-            data.add(newValue);
-        }
-
-    }
-
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -560,14 +478,6 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
 
         return super.onOptionsItemSelected(item);
     }
-
-
-
-
-
-
-
-
 
     private ServiceConnection genServiceConnection() {
         return new ServiceConnection() {
@@ -612,20 +522,12 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
         };
     }
 
-    class MyObservable extends Observable {
-        @Override
-        public void notifyObservers() {
-            setChanged();
-            super.notifyObservers();
-        }
-    }
-
-
     //My method to update the graph
     private void addData(byte[] data) {
         float newFloat = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).getFloat();
         series.addValue(newFloat);
         dataChangeSignal.notifyObservers();
+        dynamicPlot.setDomainBoundaries(0, series.size()/2, BoundaryMode.FIXED);
     }
 
     private void disconnect(){
@@ -653,8 +555,118 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
             updateState(newState);
         }
     }
+
     private void updateState(int newState) {
         state = newState;
         updateUi();
+    }
+
+    // redraws a plot whenever an update is received:
+    private class MyPlotUpdater implements Observer {
+        Plot plot;
+
+        public MyPlotUpdater(Plot plot) {
+            this.plot = plot;
+        }
+
+        @Override
+        public void update(Observable o, Object arg) {
+            plot.redraw();
+        }
+    }
+
+    class DynamicSeries implements XYSeries {
+        private LinkedList<Float> data =  new LinkedList<>();
+        private String title;
+        private Float runningAverage = 0f;
+
+
+        @Override
+        public String getTitle() {
+            return title;
+        }
+
+        @Override
+        public int size() {
+            return data.size();
+        }
+
+        @Override
+        public Number getX(int index) {
+            return index;
+        }
+
+        @Override
+        public Number getY(int index) {
+            return data.get(index);
+        }
+
+
+        public void addValue(Float newValue) {
+            if (data.size() == MAX_SERIES_SIZE) {
+                data.pop();
+            }
+            data.add(newValue);
+        }
+
+        public float getBPM() {
+            float min = data.getFirst();
+            float max = data.getFirst();
+            float median;
+
+            for(int i=0; i< data.size(); i++) {
+                float current = data.get(i);
+                if(current > max) {
+                    max = current;
+                }
+                if(current < min) {
+                    min = current;
+                }
+            }
+
+            median = ((max - min) / 2 )+ min ;
+
+            Log.d("getBPM", "max " + max + " min " + min + " median " + median);
+
+            float prev = 0;
+            float beats =0 ;
+            int prevIndex = 0;
+            for(int i=0; i< data.size(); i++) {
+                float current = data.get(i);
+                if (prev > median && current < median) {
+                    if(prevIndex != 0 ) {
+                        Log.d("getBPM", "interval between beats " + (i - prevIndex));
+
+                    }
+                    prevIndex = i;
+                    beats++;
+                }
+                prev = current;
+            }
+
+            //For some reason my window is 9 seconds long.  That doesn't make sense but I measured
+            //it several times with a stopwatch and that's what it is
+            float currentBPM = beats * 60/9;
+            Log.d("getBPM", "rounded " + currentBPM + " running " + runningAverage);
+            if(runningAverage == 0 )
+                runningAverage = currentBPM;
+            if ((Math.abs(runningAverage - currentBPM) > runningAverage * .2f) ||
+                    (currentBPM > 200  || currentBPM < 50)) {
+                runningAverage =  runningAverage * .9f + currentBPM * .1f;
+            } else {
+                runningAverage = runningAverage * .6f + currentBPM * .4f;
+            }
+            return Math.round(runningAverage);
+        }
+
+
+    }
+
+    class MyObservable extends Observable {
+        @Override
+        public void notifyObservers() {
+            setChanged();
+            super.notifyObservers();
+        }
     }
 }

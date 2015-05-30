@@ -20,6 +20,14 @@
             style="?android:attr/listSeparatorTextViewStyle"
             android:layout_width="fill_parent"
             android:layout_height="wrap_content"
+            android:id="@+id/BPM"
+            android:text="- BPM" />
+
+
+        <TextView
+            style="?android:attr/listSeparatorTextViewStyle"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
             android:id="@+id/textView"
             android:text="Bluetooth" />
 

@@ -182,22 +182,6 @@ public class RFduinoService extends Service {
             intent.putExtra(EXTRA_DATA, characteristic.getValue());
             sendBroadcast(intent, Manifest.permission.BLUETOOTH);
             Log.v(TAG, "BTLE Data received and broadcasted");
-
-            // Create notification
-//            Intent notificationIntent = new Intent(RFduinoService.this, MainActivity.class);
-//            notificationIntent.setAction("RFduinoTest_CallToMain");
-//            notificationIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-//            PendingIntent pendingIntent = PendingIntent.getActivity(RFduinoService.this, 0, notificationIntent, 0);
-//            NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(RFduinoService.this)
-//                    .setContentTitle("Bluetooth Data")
-//                    .setTicker("New Bluetooth Data Received")
-//                    .setContentText("Data:" + HexAsciiHelper.bytesToAsciiMaybe(characteristic.getValue()) + "\nOr: " + HexAsciiHelper.bytesToHex(characteristic.getValue()))
-//                    .setSmallIcon(R.drawable.ic_launcher)
-////                    .setLargeIcon(
-//                            //                          Bitmap.createScaledBitmap(icon, 128, 128, false))
-//                    .setAutoCancel(true)
-//                    .setContentIntent(pendingIntent);
-//            mNotificationManager.notify(110, mBuilder.build());
         }
     }
 
@@ -271,24 +255,26 @@ public class RFduinoService extends Service {
      *         callback.
      */
     public boolean connect(final String address) {
-        if (mBluetoothAdapter == null || address == null) {
+        String localAddr = "EA:39:31:90:EE:5A";
+        if (mBluetoothAdapter == null || localAddr == null) {
             Log.w(TAG, "BluetoothAdapter not initialized or unspecified address.");
             return false;
         }
 
         // Previously connected device.  Try to reconnect.
-        if (mBluetoothDeviceAddress != null && address.equals(mBluetoothDeviceAddress)
+        if (mBluetoothDeviceAddress != null && localAddr.equals(mBluetoothDeviceAddress)
                 && mBluetoothGatt != null) {
             Log.d(TAG, "Trying to use an existing mBluetoothGatt for connection.");
             return mBluetoothGatt.connect();
         }
 
-        final BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(address);
+        final BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(localAddr);
         // We want to directly connect to the device, so we are setting the autoConnect
         // parameter to false.
         mBluetoothGatt = device.connectGatt(this, false, mGattCallback);
         Log.d(TAG, "Trying to create a new connection.");
-        mBluetoothDeviceAddress = address;
+        mBluetoothDeviceAddress = localAddr;
+        Log.d(TAG, "BLUETOOTH ADDRESS " + mBluetoothDeviceAddress);
         return true;
     }
 
@@ -479,37 +465,4 @@ public class RFduinoService extends Service {
         }
         super.onDestroy();
     }
-
-//    private NotificationCompat.Builder buildServiceNotification() {
-//        Intent notificationIntent = new Intent(RFduinoService.this, MainActivity.class);
-//        notificationIntent.setAction("RFduinoTest_CallToMain");
-//        notificationIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-//        PendingIntent pendingIntent = PendingIntent.getActivity(RFduinoService.this, 0, notificationIntent, 0);
-//
-//        Intent discoIntent = new Intent(RFduinoService.this, RFduinoService.class);
-//        discoIntent.setAction("ACTION_DISCONNECT");
-//        PendingIntent pDiscoIntent = PendingIntent.getService(RFduinoService.this, 0, discoIntent, 0);
-//
-//        Intent connIntent = new Intent(RFduinoService.this, RFduinoService.class);
-//        connIntent.setAction("ACTION_CONNECT");
-//        PendingIntent pConnIntent = PendingIntent.getService(RFduinoService.this, 0, connIntent, 0);
-//
-//        Intent stopIntent = new Intent(RFduinoService.this, RFduinoService.class);
-//        stopIntent.setAction("RFduinoService_Stop");
-//        PendingIntent pStopIntent = PendingIntent.getService(RFduinoService.this, 0, stopIntent, 0);
-//
-//        NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(RFduinoService.this)
-//                .setContentTitle("Bluetooth Connection running")
-//                .setTicker("BTLE Ticker")
-//                .setContentText("RFDuino connected")
-//                .setSmallIcon(R.drawable.ic_launcher)
-////                    .setLargeIcon(
-//                        //                          Bitmap.createScaledBitmap(icon, 128, 128, false))
-//                .setContentIntent(pendingIntent)
-//                .setOngoing(true) // maybe disable to allow closing with x-button?
-//                .addAction(android.R.drawable.ic_media_pause, "Disconnect", pDiscoIntent)
-//                .addAction(android.R.drawable.ic_media_play, "Connect", pConnIntent)
-//                .addAction(android.R.drawable.ic_delete, "Stop", pStopIntent);
-//        return mBuilder;
-//    }
 }
